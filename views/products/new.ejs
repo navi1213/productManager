@@ -15,7 +15,7 @@
         <label for="catergory">カテゴリ</label>
         <select name="catergory" id="catergory" placeholder="カテゴリ名">
             <% for(let catergory of catergories) { %>
-                <option value="catergory"><%=catergory%></option>
+                <option value=<%=catergory%>><%=catergory%></option>
                 <%} %>
         </select>
         <button>送信</button>
