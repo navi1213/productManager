@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商品作成</title>
+</head>
+<body>
+    <h1>商品の新規登録</h1>
+    <form action="/products" method="POST">
+        <label for="name">商品名</label>
+        <input type="text" name="name" id="name" placeholder="商品名">
+        <label for="price">価格</label>
+        <input type="number" name="price" id="price" placeholder="価格">
+        <label for="catergory">カテゴリ</label>
+        <select name="catergory" id="catergory" placeholder="カテゴリ名">
+            <% for(let catergory of catergories) { %>
+                <option value="catergory"><%=catergory%></option>
+                <%} %>
+        </select>
+        <button>送信</button>
+    </form>
+    <a href="/products">戻る</a>
+</body>
+</html>
