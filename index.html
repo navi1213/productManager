@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S3ファイルアップロード</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .upload-container {
+            border: 2px dashed #ccc;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+        }
+        .success {
+            color: green;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>S3ファイルアップロード</h1>
+    
+    <div class="upload-container">
+        <input type="file" id="fileInput" accept="image/*,application/pdf,.doc,.docx">
+        <br><br>
+        <button onclick="uploadFile()" id="uploadBtn">アップロード</button>
+        
+        <div id="fileInfo" style="margin-top: 10px;"></div>
+        
+        <div class="progress-bar" id="progressBar" style="display: none;">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        
+        <div id="progressText" style="margin-top: 10px;"></div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        // API Gateway URL（実際のURLに置き換えてください）
+        const API_URL = 'https://xxxxxxxxxx.execute-api.ap-northeast-1.amazonaws.com/prod/upload-url';
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showMessage('ファイルを選択してください', 'error');
+                return;
+            }
+
+            showMessage('', '');
+            showFileInfo(file);
+            setUploading(true);
+
+            try {
+                // Step 1: 署名付きURL取得
+                showMessage('署名付きURL取得中...', '');
+                
+                const urlResponse = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        fileName: file.name,
+                        fileType: file.type,
+                        fileSize: file.size
+                    })
+                });
+
+                if (!urlResponse.ok) {
+                    throw new Error(`署名付きURL取得失敗: ${urlResponse.status}`);
+                }
+
+                const { uploadUrl, key } = await urlResponse.json();
+
+                // Step 2: S3に直接アップロード
+                showMessage('S3にアップロード中...', '');
+                
+                await uploadToS3(file, uploadUrl);
+                
+                showMessage(`アップロード完了！ファイルキー: ${key}`, 'success');
+                fileInput.value = '';
+                hideProgress();
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                showMessage(`エラー: ${error.message}`, 'error');
+            } finally {
+                setUploading(false);
+            }
+        }
+
+        function uploadToS3(file, uploadUrl) {
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+
+                // プログレス監視
+                xhr.upload.addEventListener('progress', (event) => {
+                    if (event.lengthComputable) {
+                        const percentComplete = (event.loaded / event.total) * 100;
+                        updateProgress(percentComplete);
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        resolve();
+                    } else {
+                        reject(new Error(`S3アップロード失敗: ${xhr.status}`));
+                    }
+                });
+
+                xhr.addEventListener('error', () => {
+                    reject(new Error('ネットワークエラー'));
+                });
+
+                xhr.open('PUT', uploadUrl);
+                xhr.setRequestHeader('Content-Type', file.type);
+                xhr.send(file);
+            });
+        }
+
+        function showFileInfo(file) {
+            const fileInfo = document.getElementById('fileInfo');
+            fileInfo.innerHTML = `
+                <strong>選択ファイル:</strong> ${file.name}<br>
+                <strong>サイズ:</strong> ${(file.size / 1024 / 1024).toFixed(2)} MB<br>
+                <strong>タイプ:</strong> ${file.type}
+            `;
+        }
+
+        function updateProgress(percent) {
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
+            progressBar.style.display = 'block';
+            progressFill.style.width = percent + '%';
+            progressText.textContent = `${percent.toFixed(1)}% 完了`;
+        }
+
+        function hideProgress() {
+            document.getElementById('progressBar').style.display = 'none';
+            document.getElementById('progressText').textContent = '';
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = type;
+        }
+
+        function setUploading(uploading) {
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.disabled = uploading;
+            uploadBtn.textContent = uploading ? 'アップロード中...' : 'アップロード';
+        }
+    </script>
+</body>
+</html>
